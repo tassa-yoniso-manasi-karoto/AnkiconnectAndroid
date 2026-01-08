@@ -5,14 +5,17 @@ import static fi.iki.elonen.NanoHTTPD.newFixedLengthResponse;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import androidx.annotation.NonNull;
 import androidx.preference.PreferenceManager;
 import com.kamwithk.ankiconnectandroid.ankidroid_api.IntegratedAPI;
 import fi.iki.elonen.NanoHTTPD;
 import fi.iki.elonen.router.RouterNanoHTTPD;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class RouteHandler extends RouterNanoHTTPD.DefaultHandler {
 
@@ -57,7 +60,7 @@ public class RouteHandler extends RouterNanoHTTPD.DefaultHandler {
         //        Requests from outside loopback must carry the API key (unless disabled in the settings).
         NanoHTTPD.Response unauthorized = ApiKey.verify(context, session, files.get("postData"));
         if (unauthorized != null) {
-            addCorsHeaders(context, unauthorized);
+            addCorsHeaders(context, unauthorized, session);
             return unauthorized;
         }
 
@@ -69,7 +72,7 @@ public class RouteHandler extends RouterNanoHTTPD.DefaultHandler {
         if (parameters == null || parameters.isEmpty() && files.get("postData") == null) {
             // No data was provided in the POST request so we return a simple response
             NanoHTTPD.Response rep = newFixedLengthResponse("Ankiconnect Android is running.");
-            addCorsHeaders(context, rep);
+            addCorsHeaders(context, rep, session);
             return rep;
         }
 
@@ -81,18 +84,51 @@ public class RouteHandler extends RouterNanoHTTPD.DefaultHandler {
             rep.addHeader(PRIVATE_NETWORK_ACCESS_RESPONSE, "true");
         }
 
-        addCorsHeaders(context, rep);
+        addCorsHeaders(context, rep, session);
         return rep;
     }
 
-    private void addCorsHeaders(Context context, NanoHTTPD.Response rep) {
+    private void addCorsHeaders(Context context, NanoHTTPD.Response rep, NanoHTTPD.IHTTPSession session) {
         // Add a CORS header if it is set in the preferences
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
-        String corsHost = sharedPreferences.getString("cors_host", "");
-
-        if (!corsHost.trim().equals("")) {
-            rep.addHeader("Access-Control-Allow-Origin", corsHost);
-            rep.addHeader("Access-Control-Allow-Headers", "*");
+        String corsHostsString = sharedPreferences.getString("cors_host", "");
+        if (corsHostsString.trim().isEmpty()) {
+            return;
         }
+
+        Map<String, String> headers = session.getHeaders();
+        String origin = headers.get("origin");
+
+        String[] allowedHosts = corsHostsString.split("\\n");
+        List<String> normalizedAllowedHosts = Arrays.stream(allowedHosts)
+                .map(this::normalizeHost)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toList());
+
+        if (normalizedAllowedHosts.contains("*")) {
+            // Since "*" is in the allowed hosts, simply allow all origins
+            applyHeaders(rep, "*");
+        } else if (normalizedAllowedHosts.contains(origin)) {
+            // Request is from an origin the user trusts.
+            applyHeaders(rep, origin);
+        }
+    }
+
+    private void applyHeaders(NanoHTTPD.Response rep, String allowOrigin) {
+        rep.addHeader("Access-Control-Allow-Origin", allowOrigin);
+        rep.addHeader("Access-Control-Allow-Headers", "*");
+    }
+
+    // Trim and remove trailing slash from a host
+    @NonNull
+    private String normalizeHost(String host) {
+        if (host == null) {
+            return "";
+        }
+        String normalizedHost = host.trim();
+        if (normalizedHost.endsWith("/")) {
+            normalizedHost = normalizedHost.substring(0, normalizedHost.length() - 1);
+        }
+        return normalizedHost;
     }
 }
