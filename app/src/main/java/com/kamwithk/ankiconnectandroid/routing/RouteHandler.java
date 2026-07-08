@@ -88,6 +88,30 @@ public class RouteHandler extends RouterNanoHTTPD.DefaultHandler {
         return rep;
     }
 
+    // Handle the CORS preflight (OPTIONS) that browsers send before a JSON POST.
+    // RouterNanoHTTPD routes non-GET/POST/PUT/DELETE methods here; without this,
+    // OPTIONS got no valid response so browser extensions (e.g. the selection
+    // dictionary on Firefox) were blocked by CORS before the real POST.
+    @Override
+    public NanoHTTPD.Response other(
+            String method,
+            RouterNanoHTTPD.UriResource uriResource,
+            Map<String, String> urlParams,
+            NanoHTTPD.IHTTPSession session) {
+        Context context = uriResource.initParameter(0, Context.class);
+        if ("OPTIONS".equalsIgnoreCase(method)) {
+            NanoHTTPD.Response rep = newFixedLengthResponse(NanoHTTPD.Response.Status.OK, "text/plain", "");
+            rep.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+            rep.addHeader("Access-Control-Max-Age", "86400");
+            if (Boolean.parseBoolean(session.getHeaders().get(PRIVATE_NETWORK_ACCESS_REQUEST))) {
+                rep.addHeader(PRIVATE_NETWORK_ACCESS_RESPONSE, "true");
+            }
+            addCorsHeaders(context, rep, session);
+            return rep;
+        }
+        return get(uriResource, urlParams, session);
+    }
+
     private void addCorsHeaders(Context context, NanoHTTPD.Response rep, NanoHTTPD.IHTTPSession session) {
         // Add a CORS header if it is set in the preferences
         SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
