@@ -76,6 +76,20 @@ public class CardAPI {
         return allSuspended;
     }
 
+    /** Moves the given (synthesised) card IDs to the deck with the specified ID. */
+    public void changeDeck(ArrayList<Long> cardIds, long deckId) {
+        for (long cardId : cardIds) {
+            long noteId = decodeNoteId(cardId);
+            int ord = decodeOrd(cardId);
+            Uri noteUri = Uri.withAppendedPath(FlashCardsContract.Note.CONTENT_URI, Long.toString(noteId));
+            Uri cardsUri = Uri.withAppendedPath(noteUri, "cards");
+            Uri cardUri = Uri.withAppendedPath(cardsUri, Integer.toString(ord));
+            ContentValues values = new ContentValues();
+            values.put(FlashCardsContract.Card.DECK_ID, deckId);
+            resolver.update(cardUri, values, null, null);
+        }
+    }
+
     static long encodeCardId(long noteId, int ord) {
         return (noteId << ORD_BITS) | (ord & ORD_MASK);
     }

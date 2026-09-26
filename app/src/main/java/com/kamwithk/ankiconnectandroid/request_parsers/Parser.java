@@ -184,6 +184,11 @@ public class Parser {
         return cardIds;
     }
 
+    /** Reads the {@code params.deck} string used by AnkiConnect's {@code changeDeck} action. */
+    public static String getTargetDeckName(JsonObject raw_data) {
+        return raw_data.get("params").getAsJsonObject().get("deck").getAsString();
+    }
+
     public static String getMediaFilename(JsonObject raw_data) {
         return raw_data.get("params").getAsJsonObject().get("filename").getAsString();
     }

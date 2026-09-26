@@ -78,6 +78,8 @@ public class AnkiAPIRouting {
                 return cardsInfo(raw_json);
             case "suspend":
                 return suspend(raw_json);
+            case "changeDeck":
+                return changeDeck(raw_json);
             case "multi":
                 JsonArray actions = Parser.getMultiActions(raw_json);
                 JsonArray results = new JsonArray();
@@ -267,5 +269,17 @@ public class AnkiAPIRouting {
      */
     private String suspend(JsonObject raw_json) {
         return Parser.gson.toJson(integratedAPI.cardAPI.suspendCards(Parser.getCardIds(raw_json)));
+    }
+
+    /**
+     * Moves cards to a different deck, matching desktop AnkiConnect's {@code changeDeck} action.
+     * Card IDs are the synthesised IDs returned by {@link #findCards}.
+     */
+    private String changeDeck(JsonObject raw_json) throws Exception {
+        ArrayList<Long> cardIds = Parser.getCardIds(raw_json);
+        String deckName = Parser.getTargetDeckName(raw_json);
+        long deckId = deckAPI.getDeckID(deckName);
+        integratedAPI.cardAPI.changeDeck(cardIds, deckId);
+        return "null";
     }
 }
